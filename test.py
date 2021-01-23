@@ -3,12 +3,14 @@ import pandas as pd
 from glob import glob
 from PIL import Image
 import torch
+import torchvision
 from torch.utils.data import (
     DataLoader,
     Dataset
 )
 import torchvision.datasets as datasets
 import torchvision.transforms as transforms
+import wandb
 
 
 class CustomDataSet(Dataset):
@@ -30,6 +32,10 @@ class CustomDataSet(Dataset):
 if __name__ == "__main__":
     input_dir = "data/test_input/images"
 
+    # set up wandb and download model
+    run = wandb.init(project="owkin-chal", job_type="eval")
+    artifact = run.use_artifact("model:latest")
+    artifact_dir = artifact.download()
     # create output dataframe
     res = pd.DataFrame(columns=('ID', 'Target'))
     
@@ -39,7 +45,8 @@ if __name__ == "__main__":
     # set model
     model = torchvision.models.resnet34(pretrained=False) 
     model.fc = torch.nn.Linear(model.fc.in_features, 1)
-    model.load_state_dict(torch.load("model_test.pth"))
+    model.load_state_dict(torch.load(os.path.join(artifact_dir, "model.pth")))
+    model.to(device="cuda")
     model.eval()
 
     dirs = glob(input_dir+"/*/")    
