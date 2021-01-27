@@ -38,7 +38,8 @@ def get_average_features(filenames):
         patient_features = np.load(f, allow_pickle=True)
 
         # Remove location features (but we could use them?)
-        patient_features = patient_features[:, 3:]
+        # patient_features = patient_features[:, 3:]
+        patient_features = patient_features[:, :]
 
         aggregated_features = np.mean(patient_features, axis=0)
         features.append(aggregated_features)
@@ -56,8 +57,10 @@ if __name__ == "__main__":
 
     # train_dir = args.data_dir / "train_input" / "resnet_features"
     # test_dir = args.data_dir / "test_input"  / "resnet_features"
-    train_dir = "r18_features"
-    test_dir = "r18_features_test"
+    train_dir = "r18_simclr_features"
+    test_dir = "r18_simclr_features_test"
+    # train_dir = "r50_features"
+    # test_dir = "r50_features_test"
 
     train_output_filename = args.data_dir / "training_output.csv"
 
