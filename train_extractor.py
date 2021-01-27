@@ -1,24 +1,16 @@
 import os
 import torch
 import wandb
+import numpy as np
 import torchvision
 import torch.nn as nn
 import torch.optim as optim
 from utils import AverageMeter
 import torch.nn.functional as F
-from torch.utils.data import (
-    DataLoader,
-)
 import torchvision.datasets as datasets
+from torch.utils.data import DataLoader
 import torchvision.transforms as transforms 
-from sklearn.metrics import confusion_matrix, roc_auc_score
-import numpy as np
-from histo_dataset import HistoDataset
-from histo_features_dataset import HistoFeaturesDataset
-from models import Resnet18Rnn
-from lstm import BRNN
-
-from set_transformer.models import SetTransformer
+from sklearn.metrics import confusion_matrix
 
 def evaluate(loader, model):
     print("Evaluate")
@@ -29,52 +21,32 @@ def evaluate(loader, model):
     accuracy = AverageMeter()
     positive_accuracy = AverageMeter()
     negative_accuracy = AverageMeter()
-    y_true = None
-    y_scores = None
-
     with torch.no_grad():
         for batch_idx, (x, y) in enumerate(loader):
-            x = x.to(device=device).to(torch.float32)
+            x = x.to(device=device)
             y = y.to(device=device).to(torch.float32)
+            y = torch.unsqueeze(y, 1)
 
             scores = model(x)
-            scores = torch.squeeze(scores, 2)
-
-            y = torch.unsqueeze(y, 1)
             loss = criterion(scores, y)
-
 
             scores = torch.squeeze(scores, 1)
             y = torch.squeeze(y, 1)
 
-            if y_true is None:
-                y_true = y
-                y_scores = scores
-            else:
-                y_true = torch.cat((y_true, y))
-                y_scores = torch.cat((y_scores, scores))
-
             acc = get_accuracy(y, scores)
-            # neg_acc, pos_acc = get_accuracy_per_class(y.cpu(), scores.cpu())
+            neg_acc, pos_acc = get_accuracy_per_class(y.cpu(), scores.cpu())
 
             accuracy.update(acc)
-        
-            # positive_accuracy.update(pos_acc)
-            # negative_accuracy.update(neg_acc)
+            positive_accuracy.update(pos_acc)
+            negative_accuracy.update(neg_acc)
 
     
-    auc = roc_auc_score(y_true.cpu(), y_scores.cpu())
-    print(loss)
-
     wandb.log({
     "valid_acc": accuracy.avg,
-#    "positive_acc": positive_accuracy.avg,
-#    "negative_acc": negative_accuracy.avg,
-    "valid_loss": loss.item(),
-    "AUC": auc
+    "positive_acc": positive_accuracy.avg,
+    "negative_acc": negative_accuracy.avg,
+    "valid_loss": loss.item()
     })
-
-    accuracy.reset()
 
     # Set model back to train
     model.train()
@@ -82,12 +54,13 @@ def evaluate(loader, model):
 if __name__ == "__main__":
     # init wandb
     hyperparameters_defaults = dict(
-        learning_rate = 1e-3,
-        batch_size = 32,
-        num_epochs = 25,
-        weight_decay = 1e-2,
-        model="SetTransformer",
-        aug = False,
+        learning_rate = 1e-4,
+        batch_size = 64,
+        num_epochs = 2,
+        model_depth = 50,
+        weight_decay = 0.01,
+        pretrained = True,
+        aug = True,
     )
 
     run = wandb.init(project="owkin-chal", job_type='train', config=hyperparameters_defaults)
@@ -95,12 +68,27 @@ if __name__ == "__main__":
 
     # init model
     device = torch.device("cuda")
+    
+    model_name = "resnet{depth}".format(depth=config.model_depth)
+    model = torchvision.models.__dict__[model_name](pretrained=config.pretrained)
+    model.fc = torch.nn.Linear(model.fc.in_features, 1)
+    
+    # set transforms
+    augs = [transforms.ToTensor()]
 
-    dataset = HistoFeaturesDataset("data/train_input/resnet_features", "data/training_output.csv")        
+    if config.aug:
+        augs.append(transforms.RandomHorizontalFlip(p=0.5))
+        augs.append(transforms.RandomVerticalFlip(p=0.5))
 
-    train_len = int(len(dataset)*0.75)
-    test_len = len(dataset)-train_len
-    trainset, testset  = torch.utils.data.random_split(dataset, [train_len, test_len], generator=torch.Generator().manual_seed(42))
+    tfms = transforms.Compose(augs)
+
+    dataset_aug = datasets.ImageFolder("ready_to_train", transform=tfms)
+    dataset = datasets.ImageFolder("ready_to_train", transform=transforms.ToTensor())
+
+    train_len = int(dataset.__len__()*0.75)
+    test_len = dataset.__len__()-train_len
+    trainset, _  = torch.utils.data.random_split(dataset_aug, [train_len, test_len], generator=torch.Generator().manual_seed(42))
+    _ , testset  = torch.utils.data.random_split(dataset, [train_len, test_len], generator=torch.Generator().manual_seed(42))
 
     # loaders
     train_loader = torch.utils.data.DataLoader(
@@ -114,39 +102,35 @@ if __name__ == "__main__":
         shuffle=False
     )
 
-    # model = BRNN(2051, config.hidden_size, config.layers, 1) 
-    model = SetTransformer(2051, 1, 1, num_inds=32, dim_hidden=128, num_heads=4, ln=False)
-
     model.to(device)
     model.train()
    
-
     # loss function 
     criterion = nn.BCEWithLogitsLoss()
-    # criterion = neg_log_likelihood()
 
     # optimizer
     optimizer = optim.AdamW(model.parameters(), lr=config.learning_rate, eps=1e-08, weight_decay=config.weight_decay)
-    # optimizer = optim.Adam(model.parameters(), lr=config.learning_rate)
 
     evaluate(valid_loader, model)
 
+    total = len(train_loader)
     # Train Network
     for epoch in range(config.num_epochs):
         print("epoch: ", epoch)
         for batch_idx, (data, targets) in enumerate(train_loader):
             # Get data to cuda
-            data = data.to(device=device).to(torch.float32)
+            data = data.to(device=device)
             targets = targets.to(device=device).to(torch.float32)
             
             # forward
             scores = model(data)
-            scores = torch.squeeze(scores, 2)
             targets = torch.unsqueeze(targets, 1)
             loss = criterion(scores, targets)
 
             # backward
             loss.backward()
+
+            print(batch_idx, "/", total)
 
             optimizer.step()
             optimizer.zero_grad()
@@ -156,11 +140,11 @@ if __name__ == "__main__":
             })
 
             # train_loss.reset()
-            if (batch_idx+1)%(len(train_loader)//3) == 0:
+            if (batch_idx+1)%(len(train_loader)//5) == 0:
                 evaluate(valid_loader, model)
 
     # save model to wandb
     torch.save(model.state_dict(), 'model.pth')
-    artifact = wandb.Artifact('transformer', type='model')
+    artifact = wandb.Artifact('extractor', type='model')
     artifact.add_file('model.pth')
     run.log_artifact(artifact)
