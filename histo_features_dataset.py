@@ -4,9 +4,11 @@ import numpy as np
 import os
 
 class HistoFeaturesDataset(Dataset):
-    def __init__(self, root_dir, labels_path):
+    def __init__(self, root_dir, labels_path, test=False):
         self.root_dir = root_dir
-        self.labels = pd.read_csv(labels_path)
+        if not test:
+            self.labels = pd.read_csv(labels_path)
+        self.test = test
         self.items = os.listdir(self.root_dir)
 
     def __len__(self):
@@ -22,5 +24,12 @@ class HistoFeaturesDataset(Dataset):
 
         ID = int(fname.split("_")[1].replace(".npy",""))
 
-        target = self.labels.loc[self.labels["ID"] == ID]["Target"]
-        return target_size, int(target)
+        if not self.test:
+            target = self.labels.loc[self.labels["ID"] == ID]["Target"]
+        else:
+            target = -1
+
+        if self.test:
+            return ID, target_size, int(target)
+        else:
+            return target_size, int(target)
