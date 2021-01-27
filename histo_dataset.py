@@ -11,11 +11,12 @@ from glob import glob
 
 class HistoDataset(torch.utils.data.Dataset):
 
-    def __init__(self, root_path: str, transform = None):
+    def __init__(self, root_path: str, transform = None, test=False):
         super(HistoDataset, self).__init__()
 
         self.root_path = root_path
         self.transform = transform
+        self.test = test
 
         self._parse_list()
 
@@ -26,7 +27,10 @@ class HistoDataset(torch.utils.data.Dataset):
         labels = pd.read_csv(os.path.join(self.root_path, "training_output.csv"))
         
         # parse images
-        imgs_dir = os.path.join(self.root_path, "train_input/images")
+        if self.test:
+            imgs_dir = os.path.join(self.root_path, "test_input/images")
+        else:
+            imgs_dir = os.path.join(self.root_path, "train_input/images")
         dirs = glob(imgs_dir+"/*/")
         
         for d in dirs:
@@ -34,8 +38,6 @@ class HistoDataset(torch.utils.data.Dataset):
             ID = int(d.split("/")[-2].split("_")[1])
 
             fnames = os.listdir(d)
-            if len(fnames) != 1000:
-                continue
 
             # get images paths
             imgs_paths = []
@@ -43,26 +45,31 @@ class HistoDataset(torch.utils.data.Dataset):
                 imgs_paths.append(os.path.join(d, fname))
             
             # get label
-            row = labels.loc[labels["ID"]==ID]
-            label = int(row["Target"])
+            if self.test:
+                label = -1
+            else:
+                row = labels.loc[labels["ID"]==ID]
+                label = int(row["Target"])
         
-            self.sample_list.append((imgs_paths, label))
+            self.sample_list.append((ID, imgs_paths, label))
         
 
     def __getitem__(self, index):
         # load images in list
         sample = self.sample_list[index]
+        ID = 0
+        PTH = 1
+        LABEL = 2
 
         images = []
-        for pth in sample[0]:
+        for pth in sample[1]:
             images.append(Image.open(pth))
 
         if self.transform is not None:
             images = [self.transform(pic) for pic in images]
 
-        label = sample[1]
         images = torch.stack(images, 0).permute(0, 1, 2, 3)
-        return images, label
+        return sample[ID], images, sample[LABEL]
 
     def __len__(self):
         return len(self.sample_list)
