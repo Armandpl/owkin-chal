@@ -12,24 +12,46 @@ class Identity(nn.Module):
     def forward(self, x):
         return x
 
+def load_model_weights(model, weights):
+
+    model_dict = model.state_dict()
+    weights = {k: v for k, v in weights.items() if k in model_dict}
+    if weights == {}:
+        print('No weight could be loaded..')
+    model_dict.update(weights)
+    model.load_state_dict(model_dict)
+
+    return model
+
 if __name__ == "__main__":
-    o_dir = "r18_features"
+    o_dir = "r18_simclr_features_test"
     
     os.makedirs(o_dir)    
     
-    run = wandb.init(project="owkin-chal", job_type="pre_compute")
-    artifact = run.use_artifact("model:v7")
-    artifact_dir = artifact.download()
-    model_path = os.path.join(artifact_dir, "model.pth")
+    # run = wandb.init(project="owkin-chal", job_type="pre_compute")
+    # artifact = run.use_artifact("model:v7")
+    # artifact_dir = artifact.download()
+    # model_path = os.path.join(artifact_dir, "model.pth")
 
-    model = torchvision.models.resnet18(pretrained=False) 
-    model.fc = nn.Linear(512, 1)
-    model.load_state_dict(torch.load(model_path)) 
+    
+    model = torchvision.models.__dict__['resnet18'](pretrained=True)
+
+    state = torch.load('_ckpt_epoch_9.ckpt', map_location='cuda:0')
+
+    state_dict = state['state_dict']
+    for key in list(state_dict.keys()):
+      state_dict[key.replace('model.', '').replace('resnet.', '')] = state_dict.pop(key)
+
+    model = load_model_weights(model, state_dict)
+
+    # model = torchvision.models.resnet18(pretrained=False) 
+    # model.fc = nn.Linear(512, 1)
+    # model.load_state_dict(torch.load(model_path)) 
     model.fc = Identity()
 
     tfms = torchvision.transforms.Compose([torchvision.transforms.ToTensor()])
 
-    dataset = HistoDataset("data", transform=tfms) 
+    dataset = HistoDataset("data", transform=tfms, test=True)
 
     loader = torch.utils.data.DataLoader(
         dataset,

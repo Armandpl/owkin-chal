@@ -1,78 +1,76 @@
 import os
-import pandas as pd
-from glob import glob
-from PIL import Image
 import torch
+import wandb
 import torchvision
+import torch.nn as nn
+import torch.optim as optim
+from utils import AverageMeter
+import torch.nn.functional as F
 from torch.utils.data import (
     DataLoader,
-    Dataset
 )
 import torchvision.datasets as datasets
-import torchvision.transforms as transforms
-import wandb
+import torchvision.transforms as transforms 
+from sklearn.metrics import confusion_matrix, roc_auc_score
+import numpy as np
+from histo_dataset import HistoDataset
+from histo_features_dataset import HistoFeaturesDataset
+from models import Resnet18Rnn
+from lstm import BRNN
 
-
-class CustomDataSet(Dataset):
-    def __init__(self, main_dir, transform):
-        self.main_dir = main_dir
-        self.transform = transform
-        all_imgs = os.listdir(main_dir)
-        self.total_imgs = all_imgs
-
-    def __len__(self):
-        return len(self.total_imgs)
-
-    def __getitem__(self, idx):
-        img_loc = os.path.join(self.main_dir, self.total_imgs[idx])
-        image = Image.open(img_loc).convert("RGB")
-        tensor_image = self.transform(image)
-        return tensor_image
+from set_transformer.models import SetTransformer
+import pandas as pd
 
 if __name__ == "__main__":
-    input_dir = "data/test_input/images"
+    # init wandb
+    hyperparameters_defaults = dict(
+        model="SetTransformer",
+        aug = False,
+    )
 
-    # set up wandb and download model
-    run = wandb.init(project="owkin-chal", job_type="eval")
-    artifact = run.use_artifact("model:latest")
+    run = wandb.init(project="owkin-chal", job_type='eval', config=hyperparameters_defaults)
+    config = wandb.config
+
+    artifact = run.use_artifact("transformer:v0")
     artifact_dir = artifact.download()
-    # create output dataframe
-    res = pd.DataFrame(columns=('ID', 'Target'))
-    
-    # set transforms
-    tfms = transforms.Compose([transforms.ToTensor()])
+    model_path = os.path.join(artifact_dir, "model.pth")
 
-    # set model
-    model = torchvision.models.resnet34(pretrained=False) 
-    model.fc = torch.nn.Linear(model.fc.in_features, 1)
-    model.load_state_dict(torch.load(os.path.join(artifact_dir, "model.pth")))
-    model.to(device="cuda")
+    # init model
+    device = torch.device("cuda")
+
+    dataset = HistoFeaturesDataset("data/test_input/resnet_features", "", test=True)
+
+
+    # loaders
+    loader = torch.utils.data.DataLoader(
+        dataset,
+        batch_size=1,
+        shuffle=False
+    )
+
+    model = SetTransformer(2051, 1, 1, num_inds=32, dim_hidden=128, num_heads=4, ln=False)
+    model.load_state_dict(torch.load(model_path)) 
+
+    model.to(device)
     model.eval()
+   
+    ids = []
+    preds = []
 
-    dirs = glob(input_dir+"/*/")    
-    # for each id
-    for directory in dirs:
-        # parse id
-        ID = int(directory.split("/")[-2].replace("ID_", ""))
-        print(ID)
+    total = len(loader)
+    with torch.no_grad():
+        for batch_idx, (ID, x, y) in enumerate(loader):
+            print(batch_idx, "/", total)
+            x = x.to(device=device).to(torch.float32)
+            y = y.to(device=device).to(torch.float32)
 
-        dataset = CustomDataSet(directory, tfms)
-        loader = DataLoader(dataset, batch_size=3, shuffle=False)
-        
-        positive = False
-        for _, images in enumerate(loader):
-            images = images.to(device="cuda")
+            scores = model(x)
+            # scores = torch.clip(torch.squeeze(scores, 2), 0, 1)
             
-            scores = model(images)
-            print(scores)
-            scores = scores > 0.5 
-            print(scores)
-            any_positives = torch.any(scores).item()
-            print(any_positives)   
-            break
-        break
-                 
-        # print("files ", files)
-            # run model
-            # write output to dataframe
+            ids.append(int(ID))
+            preds.append(float(scores))
+
     
+    test_output = pd.DataFrame({"ID": ids, "Target": preds})
+    test_output.set_index("ID", inplace=True)
+    test_output.to_csv("preds.csv")
