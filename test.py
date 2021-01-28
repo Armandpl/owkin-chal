@@ -1,25 +1,19 @@
 import os
 import torch
 import wandb
+import numpy as np
 import torchvision
+import pandas as pd
 import torch.nn as nn
 import torch.optim as optim
-from utils import AverageMeter
 import torch.nn.functional as F
-from torch.utils.data import (
-    DataLoader,
-)
+from torch.utils.data import DataLoader
 import torchvision.datasets as datasets
 import torchvision.transforms as transforms 
 from sklearn.metrics import confusion_matrix, roc_auc_score
-import numpy as np
-from histo_dataset import HistoDataset
-from histo_features_dataset import HistoFeaturesDataset
-from models import Resnet18Rnn
-from lstm import BRNN
+from utils.histo_features_dataset import HistoFeaturesDataset
 
-from set_transformer.models import SetTransformer
-import pandas as pd
+from models.set_transformer import SetTransformer
 
 if __name__ == "__main__":
     # init wandb
@@ -38,7 +32,7 @@ if __name__ == "__main__":
     # init model
     device = torch.device("cuda")
 
-    dataset = HistoFeaturesDataset("data/test_input/resnet_features", "", test=True)
+    dataset = HistoFeaturesDataset("data/owkin-data/test_input/resnet_features", "", test=True)
 
 
     # loaders

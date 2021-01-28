@@ -57,8 +57,8 @@ if __name__ == "__main__":
 
     # train_dir = args.data_dir / "train_input" / "resnet_features"
     # test_dir = args.data_dir / "test_input"  / "resnet_features"
-    train_dir = "r18_simclr_features"
-    test_dir = "r18_simclr_features_test"
+    train_dir = "data/r18_simclr_features"
+    test_dir = "data/r18_simclr_features_test"
     # train_dir = "r50_features"
     # test_dir = "r50_features_test"
 

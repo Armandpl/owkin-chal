@@ -3,7 +3,7 @@ import torch
 import wandb
 import torchvision
 from torch import nn
-from histo_dataset import HistoDataset
+from utils.histo_dataset import HistoDataset
 
 class Identity(nn.Module):
     def __init__(self):
@@ -24,7 +24,7 @@ def load_model_weights(model, weights):
     return model
 
 if __name__ == "__main__":
-    o_dir = "r50"
+    o_dir = "r50_test"
     
     os.makedirs(o_dir)    
     
@@ -40,7 +40,7 @@ if __name__ == "__main__":
 
     tfms = torchvision.transforms.Compose([torchvision.transforms.ToTensor()])
 
-    dataset = HistoDataset("data", transform=tfms)
+    dataset = HistoDataset("data/owkin-data", transform=tfms, test=True)
 
     loader = torch.utils.data.DataLoader(
         dataset,

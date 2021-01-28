@@ -16,9 +16,9 @@ class HistoFeaturesDataset(Dataset):
 
     def __getitem__(self, idx):
         fname = self.items[idx]
-        target_size = np.zeros([1000, 2051]) 
 
         features = np.load(os.path.join(self.root_dir, fname), allow_pickle=True) 
+        target_size = np.zeros([1000, features.shape[1]]) 
         
         target_size[:features.shape[0],:] = features
 
