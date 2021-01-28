@@ -1,3 +1,6 @@
+import numpy as np
+from sklearn.metrics import confusion_matrix
+
 def get_accuracy(y_true, y_pred):
     assert y_true.ndim == 1 and y_true.size() == y_pred.size()
     y_pred = y_pred > 0.5

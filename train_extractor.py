@@ -5,12 +5,11 @@ import numpy as np
 import torchvision
 import torch.nn as nn
 import torch.optim as optim
-from utils import AverageMeter
 import torch.nn.functional as F
 import torchvision.datasets as datasets
 from torch.utils.data import DataLoader
 import torchvision.transforms as transforms 
-from sklearn.metrics import confusion_matrix
+from utils.utils import AverageMeter, get_accuracy_per_class, get_accuracy
 
 def evaluate(loader, model):
     print("Evaluate")
@@ -82,8 +81,8 @@ if __name__ == "__main__":
 
     tfms = transforms.Compose(augs)
 
-    dataset_aug = datasets.ImageFolder("ready_to_train", transform=tfms)
-    dataset = datasets.ImageFolder("ready_to_train", transform=transforms.ToTensor())
+    dataset_aug = datasets.ImageFolder("data/ready_to_train", transform=tfms)
+    dataset = datasets.ImageFolder("data/ready_to_train", transform=transforms.ToTensor())
 
     train_len = int(dataset.__len__()*0.75)
     test_len = dataset.__len__()-train_len

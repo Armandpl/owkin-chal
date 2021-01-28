@@ -1,24 +1,19 @@
 import os
 import torch
 import wandb
+import numpy as np
 import torchvision
 import torch.nn as nn
 import torch.optim as optim
-from utils import AverageMeter
+from utils.utils import AverageMeter, get_accuracy
 import torch.nn.functional as F
-from torch.utils.data import (
-    DataLoader,
-)
+from torch.utils.data import DataLoader
 import torchvision.datasets as datasets
+from sklearn.metrics import roc_auc_score
 import torchvision.transforms as transforms 
-from sklearn.metrics import confusion_matrix, roc_auc_score
-import numpy as np
-from histo_dataset import HistoDataset
-from histo_features_dataset import HistoFeaturesDataset
-from models import Resnet18Rnn
-from lstm import BRNN
+from models.set_transformer import SetTransformer
+from utils.histo_features_dataset import HistoFeaturesDataset
 
-from set_transformer.models import SetTransformer
 
 def evaluate(loader, model):
     print("Evaluate")
@@ -64,7 +59,6 @@ def evaluate(loader, model):
 
     
     auc = roc_auc_score(y_true.cpu(), y_scores.cpu())
-    print(loss)
 
     wandb.log({
     "valid_acc": accuracy.avg,
@@ -83,8 +77,11 @@ if __name__ == "__main__":
     # init wandb
     hyperparameters_defaults = dict(
         learning_rate = 1e-3,
+        hidden_size = 128,
+        num_heads = 4,
+        layer_norm = False,
         batch_size = 32,
-        num_epochs = 25,
+        num_epochs = 50,
         weight_decay = 1e-2,
         model="SetTransformer",
         aug = False,
@@ -96,7 +93,7 @@ if __name__ == "__main__":
     # init model
     device = torch.device("cuda")
 
-    dataset = HistoFeaturesDataset("data/train_input/resnet_features", "data/training_output.csv")        
+    dataset = HistoFeaturesDataset("data/r50", "data/owkin-data/training_output.csv")        
 
     train_len = int(len(dataset)*0.75)
     test_len = len(dataset)-train_len
@@ -115,11 +112,10 @@ if __name__ == "__main__":
     )
 
     # model = BRNN(2051, config.hidden_size, config.layers, 1) 
-    model = SetTransformer(2051, 1, 1, num_inds=32, dim_hidden=128, num_heads=4, ln=False)
+    model = SetTransformer(2048, 1, 1, num_inds=32, dim_hidden=config.hidden_size, num_heads=config.num_heads, ln=config.layer_norm)
 
     model.to(device)
     model.train()
-   
 
     # loss function 
     criterion = nn.BCEWithLogitsLoss()
