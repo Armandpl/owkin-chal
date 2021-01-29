@@ -32,8 +32,7 @@ if __name__ == "__main__":
     # init model
     device = torch.device("cuda")
 
-    dataset = HistoFeaturesDataset("data/r50_features_test/", "", test=True)
-
+    dataset = HistoFeaturesDataset("data/owkin-data/test_input/resnet_features", "", test=True)
 
     # loaders
     loader = torch.utils.data.DataLoader(
