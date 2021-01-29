@@ -25,14 +25,14 @@ if __name__ == "__main__":
     run = wandb.init(project="owkin-chal", job_type='eval', config=hyperparameters_defaults)
     config = wandb.config
 
-    artifact = run.use_artifact("transformer:v0")
+    artifact = run.use_artifact("transformer:v7")
     artifact_dir = artifact.download()
     model_path = os.path.join(artifact_dir, "model.pth")
 
     # init model
     device = torch.device("cuda")
 
-    dataset = HistoFeaturesDataset("data/owkin-data/test_input/resnet_features", "", test=True)
+    dataset = HistoFeaturesDataset("data/r50_features_test/", "", test=True)
 
 
     # loaders
@@ -60,6 +60,7 @@ if __name__ == "__main__":
 
             scores = model(x)
             # scores = torch.clip(torch.squeeze(scores, 2), 0, 1)
+            print(torch.squeeze(scores, 2))
             
             ids.append(int(ID))
             preds.append(float(scores))

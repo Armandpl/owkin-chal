@@ -79,12 +79,12 @@ if __name__ == "__main__":
         learning_rate = 1e-3,
         hidden_size = 128,
         num_heads = 4,
+        num_inds = 32,
         layer_norm = False,
         batch_size = 32,
-        num_epochs = 50,
+        num_epochs = 20,
         weight_decay = 1e-2,
         model="SetTransformer",
-        aug = False,
     )
 
     run = wandb.init(project="owkin-chal", job_type='train', config=hyperparameters_defaults)
@@ -93,7 +93,7 @@ if __name__ == "__main__":
     # init model
     device = torch.device("cuda")
 
-    dataset = HistoFeaturesDataset("data/r50", "data/owkin-data/training_output.csv")        
+    dataset = HistoFeaturesDataset("data/r50_features", "data/owkin-data/training_output.csv")        
 
     train_len = int(len(dataset)*0.75)
     test_len = len(dataset)-train_len
@@ -112,7 +112,7 @@ if __name__ == "__main__":
     )
 
     # model = BRNN(2051, config.hidden_size, config.layers, 1) 
-    model = SetTransformer(2048, 1, 1, num_inds=32, dim_hidden=config.hidden_size, num_heads=config.num_heads, ln=config.layer_norm)
+    model = SetTransformer(2051, 1, 1, num_inds=config.num_inds, dim_hidden=config.hidden_size, num_heads=config.num_heads, ln=config.layer_norm)
 
     model.to(device)
     model.train()
@@ -138,6 +138,7 @@ if __name__ == "__main__":
             # forward
             scores = model(data)
             scores = torch.squeeze(scores, 2)
+            print(scores)
             targets = torch.unsqueeze(targets, 1)
             loss = criterion(scores, targets)
 
